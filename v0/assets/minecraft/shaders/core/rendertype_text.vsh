@@ -18,38 +18,42 @@ out vec2 texCoord0;
 
 #moj_import <minecraft:text_effects_utils.glsl>
 
-void main() {
-    gl_Position = ProjMat * ModelViewMat * vec4(Position, 1.0);
+const float SIG_G = 1.0 / 255.0;
+const float SIG_B = 244.0 / 255.0;
 
-    // ===== v0_fixed2: y-offset via signature color (#RR01F4) =====
-// R byte encodes signed offset: off = R - 128 (pixels). Positive = move up.
-// Shadow pass darkens colors, so we also accept the shadowed signature (~25%) and recover R by *4.
-// Apply without GUI-gate to avoid missing actionbar.
-{
-    vec3 rgb = Color.rgb;
+bool decodeControlYOffset(out float yOffsetPx) {
+    yOffsetPx = 0.0;
 
-    bool sigMain =
-        abs(rgb.g - (1.0/255.0)) < 0.01 &&
-        abs(rgb.b - (244.0/255.0)) < 0.02;
+    // Recover from global color modulation first.
+    vec3 baseRgb = Color.rgb / max(ColorModulator.rgb, vec3(0.0001));
 
-    // approximate shadow signature of (1/255, 244/255) * 0.25
-    bool sigShadow =
-        abs(rgb.g - (1.0/255.0) * 0.25) < 0.003 &&
-        abs(rgb.b - (244.0/255.0) * 0.25) < 0.03;
-
-    if (sigMain || sigShadow) {
-        float rRec = sigShadow ? clamp(rgb.r * 4.0, 0.0, 1.0) : rgb.r;
-        int off = int(floor(rRec * 255.0 + 0.5)) - 128;
-        gl_Position.y += gl_Position.w * (2.0 * float(off) / ScreenSize.y);
+    // Shadow pass scales RGB, so detect by channel ratio and solve scale.
+    float scale = baseRgb.b / SIG_B;
+    if (scale < 0.18 || scale > 1.15) {
+        return false;
     }
+
+    float expectedG = SIG_G * scale;
+    if (abs(baseRgb.g - expectedG) > 0.0025) {
+        return false;
+    }
+
+    float recoveredR = clamp(baseRgb.r / max(scale, 0.0001), 0.0, 1.0);
+    int off = int(floor(recoveredR * 255.0 + 0.5)) - 128;
+    yOffsetPx = float(off);
+    return true;
 }
-// ======================================================
 
-
-sphericalVertexDistance = fog_spherical_distance(Position);
+void main() {
+    sphericalVertexDistance = fog_spherical_distance(Position);
     cylindricalVertexDistance = fog_cylindrical_distance(Position);
     vertexColor = Color * texelFetch(Sampler2, UV2 / 16, 0);
     texCoord0 = UV0;
 
     applyTextEffects();
+
+    float yOffsetPx;
+    if (decodeControlYOffset(yOffsetPx)) {
+        gl_Position.y += gl_Position.w * (2.0 * yOffsetPx / ScreenSize.y);
+    }
 }
