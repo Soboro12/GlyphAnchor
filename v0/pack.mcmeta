@@ -1,0 +1,6 @@
+{
+  "pack": {
+    "pack_format": 81,
+    "description": "v0: text y-offset via #RR01F4 signature (R=signed offset+128)"
+  }
+}

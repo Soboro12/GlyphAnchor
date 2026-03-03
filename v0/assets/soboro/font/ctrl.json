@@ -1,0 +1,13 @@
+{
+  "providers": [
+    {
+      "type": "bitmap",
+      "file": "soboro:font/ctrl.png",
+      "ascent": 0,
+      "height": 1,
+      "chars": [
+        ""
+      ]
+    }
+  ]
+}
